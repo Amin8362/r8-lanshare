@@ -1,1 +1,54 @@
+name: Build and Release r8-lanshare
 
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Resolve dependencies and vet
+        run: |
+          go get github.com/skip2/go-qrcode
+          go mod tidy
+          go vet ./...
+
+      - name: Build Linux x86-64 static binary
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOAMD64=v1 \
+            go build -trimpath -ldflags="-s -w" -o r8-lanshare-linux-x86_64 .
+
+      - name: Build Windows x86-64 static binary
+        run: |
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 GOAMD64=v1 \
+            go build -trimpath -ldflags="-s -w" -o r8-lanshare-windows-x86_64.exe .
+
+      - name: Smoke test Linux binary
+        run: |
+          ./r8-lanshare-linux-x86_64 -version
+
+      - name: Publish Permanent GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest Release (Linux & Windows)
+          body: Automated standalone Go builds by R8Force (compatible with all x86-64 CPUs).
+          make_latest: true
+          files: |
+            r8-lanshare-linux-x86_64
+            r8-lanshare-windows-x86_64.exe
